@@ -213,4 +213,4 @@ Each worktree has its own `node_modules` symlink (or fresh copy, depending on pn
 
 3. **Check pitfalls.** `ls ai/knowledge/pitfalls/` and read anything whose name hints at relevance. Often the answer is already there.
 
-4. **Open an issue.** https://github.com/renewisepunk/wisepunk-agentic-engineering-framework/issues — describe what you did, what you expected, what happened. PRs welcome.
+4. **Open an issue.** https://github.com/renewisepunk/wisepunk-agentic-engineering-framework-v2/issues — describe what you did, what you expected, what happened. PRs welcome.

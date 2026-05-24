@@ -24,7 +24,7 @@ If you're integrating the framework into an existing repo, the same steps apply 
 In the root of your project (existing or fresh):
 
 ```bash
-git clone https://github.com/renewisepunk/wisepunk-agentic-engineering-framework /tmp/waef
+git clone https://github.com/renewisepunk/wisepunk-agentic-engineering-framework-v2 /tmp/waef
 bash /tmp/waef/framework/tools/install.sh
 ```
 
@@ -255,5 +255,5 @@ Don't skip the compound step. It is the difference between a system that gets wo
 
 ## Getting help
 
-- **Issues / bug reports:** https://github.com/renewisepunk/wisepunk-agentic-engineering-framework/issues
+- **Issues / bug reports:** https://github.com/renewisepunk/wisepunk-agentic-engineering-framework-v2/issues
 - **Pull requests welcome** — especially per-stack `bootstrap-worktree-backend.sh` examples

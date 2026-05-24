@@ -216,4 +216,4 @@ When these ship, the framework gets corresponding upgrades.
 
 Building Paul9 with this framework was the highest-leverage engineering experience of the team's careers. One human directed traffic for a fleet of 5–10 agents shipping features in parallel; the codebase got *easier* to work in over time because of the compound step; the Three-Surface Rule kept everything legible.
 
-We extracted the framework so others can do the same. If it works for you, [tell us](https://github.com/renewisepunk). If it doesn't, [tell us why](https://github.com/renewisepunk/wisepunk-agentic-engineering-framework/issues).
+We extracted the framework so others can do the same. If it works for you, [tell us](https://github.com/renewisepunk). If it doesn't, [tell us why](https://github.com/renewisepunk/wisepunk-agentic-engineering-framework-v2/issues).

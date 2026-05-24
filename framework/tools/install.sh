@@ -5,7 +5,7 @@
 #   bash /path/to/waef/framework/tools/install.sh
 #
 # Or from a clone:
-#   git clone https://github.com/renewisepunk/wisepunk-agentic-engineering-framework /tmp/waef
+#   git clone https://github.com/renewisepunk/wisepunk-agentic-engineering-framework-v2 /tmp/waef
 #   bash /tmp/waef/framework/tools/install.sh
 #
 # What it does:

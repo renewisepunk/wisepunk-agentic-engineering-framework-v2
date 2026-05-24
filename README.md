@@ -27,7 +27,7 @@ It is **markdown-first**. Every workflow, skill, standard, pitfall, and pattern 
 
 ```bash
 # In your existing project
-git clone https://github.com/renewisepunk/wisepunk-agentic-engineering-framework /tmp/waef
+git clone https://github.com/renewisepunk/wisepunk-agentic-engineering-framework-v2 /tmp/waef
 bash /tmp/waef/framework/tools/install.sh
 
 # Then fill in the placeholders the installer surfaces:
