@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# Pre-push hook for parallel-agent worktrees.
+# 1. Reject direct pushes to main (open a PR instead).
+# 2. Lint changed .ts/.tsx files before allowing push (catches the lint
+#    errors that would otherwise fail CI after the agent already opened a PR).
+#
+# Escape hatch for main:    FORCE_DIRECT_PUSH=1 git push origin main
+# Escape hatch for lint:    SKIP_PREPUSH_LINT=1 git push origin <branch>
+
+set -euo pipefail
+
+protected_branch="main"
+exit_code=0
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  branch="${remote_ref#refs/heads/}"
+
+  # Block direct pushes to main
+  if [[ "$branch" == "$protected_branch" ]]; then
+    if [[ "${FORCE_DIRECT_PUSH:-0}" == "1" ]]; then
+      echo "WARN: FORCE_DIRECT_PUSH=1 set — bypassing protection on $protected_branch" >&2
+      continue
+    fi
+
+    cat >&2 <<EOF
+✗ Direct pushes to '$protected_branch' are blocked.
+
+Open a pull request instead. CI ('Type-check, lint, codegen') runs on PRs and
+acts as the merge gate that keeps parallel agents safe.
+
+If you really need a direct push (emergency hotfix, etc.):
+  FORCE_DIRECT_PUSH=1 git push origin $protected_branch
+
+EOF
+    exit 1
+  fi
+
+  # Lint changed files on non-main pushes (skippable for speed)
+  if [[ "${SKIP_PREPUSH_LINT:-0}" == "1" ]]; then
+    continue
+  fi
+
+  # Get changed .ts/.tsx files compared to origin/main (or the merge base)
+  # Use the remote sha if it exists, otherwise fallback to origin/main
+  base="origin/main"
+  if ! git rev-parse --verify -q "$base" >/dev/null; then
+    base="HEAD~"  # fallback if origin/main not available locally
+  fi
+
+  CHANGED=$(git diff --name-only --diff-filter=ACMR "$base"...HEAD -- '*.ts' '*.tsx' 2>/dev/null \
+    | grep -v -E '^(convex/_generated/|node_modules/|\.next/)' \
+    || true)
+
+  if [[ -z "$CHANGED" ]]; then
+    continue
+  fi
+
+  echo "Linting changed .ts/.tsx files before push..." >&2
+  if ! echo "$CHANGED" | xargs npx --no-install eslint 2>&1; then
+    cat >&2 <<EOF
+
+✗ Lint errors above. Fix them before pushing, or bypass with:
+  SKIP_PREPUSH_LINT=1 git push ...
+
+(CI will catch these anyway — fixing locally is faster than a PR cycle.)
+EOF
+    exit_code=1
+  fi
+done
+
+exit $exit_code

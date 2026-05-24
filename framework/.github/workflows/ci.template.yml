@@ -1,0 +1,74 @@
+# CI workflow template for projects using the Wisepunk Agentic Engineering Framework.
+#
+# Defaults assume Node 20 + pnpm + TypeScript. Adapt for other stacks:
+#   - Python: setup-python@v5, replace tsc with mypy/pyright, lint with ruff
+#   - Go: setup-go@v5, go build ./..., golangci-lint
+#   - Rust: dtolnay/rust-toolchain@stable, cargo check, cargo clippy
+#
+# Principles:
+#   - <2 min ideal for fast feedback
+#   - Per-PR concurrency, cancel-in-progress
+#   - Lint changed files only (full-repo lint is slow and noisy on existing debt)
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches-ignore:
+      - main
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Type-check + lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so we can diff against the base branch
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript
+        run: npx tsc --noEmit
+
+      - name: ESLint (changed files only)
+        run: |
+          # Determine the base ref to diff against
+          if [ -n "${{ github.event.pull_request.base.ref }}" ]; then
+            BASE="origin/${{ github.event.pull_request.base.ref }}"
+          else
+            BASE="origin/main"
+          fi
+
+          echo "Linting files changed since $BASE"
+          CHANGED=$(git diff --name-only --diff-filter=ACMR "$BASE"...HEAD -- '*.ts' '*.tsx' \
+            | grep -v -E '^(node_modules/|\.next/|.*_generated/)' \
+            || true)
+
+          if [ -z "$CHANGED" ]; then
+            echo "No .ts/.tsx changes — skipping ESLint."
+            exit 0
+          fi
+
+          echo "Files to lint:"
+          echo "$CHANGED"
+          echo ""
+          echo "$CHANGED" | xargs npx eslint
