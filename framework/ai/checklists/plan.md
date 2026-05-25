@@ -17,6 +17,11 @@ Verify before finalizing any plan.
 - [ ] Three-Surface table filled in (or exempt with stated reason)
 - [ ] Any surface intentionally excluded has a stated reason
 
+## Security
+
+- [ ] Every new backend action that accepts a workspace/tenant ID includes an ownership check (verify the resource belongs to the requester)
+- [ ] Every new HTTP route that accepts numeric body fields validates them at the HTTP layer (TypeScript types are not enforced at runtime on deserialized JSON)
+
 ## Risk
 
 - [ ] Edge cases and failure modes enumerated

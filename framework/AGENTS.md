@@ -47,6 +47,37 @@ Issues with `blockedBy` relations in Linear should NOT be dispatched until their
 
 Watch the meters: each background session consumes Claude subscription quota independently, and each preview deployment counts against your backend's slot quota. Don't dispatch 30 agents at once unless you're prepared to pay.
 
+### Coordinator monitoring loop (always after dispatch)
+
+After dispatching any agent or batch — single `/new-feature {ISSUE_PREFIX}-X`, single `claude --bg`, or bulk `tools/dispatch-batch.sh` — the coordinator session (the one that did the dispatch) **must** start a recurring status loop. Dispatch without a loop is fire-and-forget; with a loop it's fire-and-supervise.
+
+`tools/dispatch-batch.sh` prints a ready-to-paste loop incantation at the end of its output. Copy it. The standard shape:
+
+```
+/loop 5m Check status of in-flight agents ({ISSUE_PREFIX}-X, {ISSUE_PREFIX}-Y, ...). For each, report agent status via `claude agents --json`, and PR state via `gh pr list --state all`. For PRs with type-check passing and no real failures (smoke infra failures are ok), admin-merge with `gh pr merge <num> --admin --squash`. For type-check failures, surface the errors so we can fix them. When all are merged, stop and summarize.
+```
+
+What the loop does for you:
+
+* **Catches stale PRs** before aggregator-file conflicts compound into bigger rebases
+* **Admin-merges green PRs** as they land (the standing policy is: type-check pass + smoke-infra-fail = mergeable)
+* **Surfaces type-check / lint failures** with actionable errors so you can fix in-place or re-dispatch
+* **Unlocks dependent batches** as foundations land (so Phase 1 → Phase 2 happens without idle wall-clock time)
+* **Stops on its own** when all dispatched issues are merged
+
+Session-only — the loop dies when the coordinator session exits. For overnight or multi-day batches use the `/schedule` skill instead (durable cloud run).
+
+### After a merge sprint — clean up worktrees
+
+Each dispatched agent leaves a worktree behind in `.claude/worktrees/`. After merging a batch of PRs, run from the **main worktree**:
+
+```bash
+tools/cleanup-merged.sh           # removes all worktrees whose branch has no open PR
+tools/cleanup-merged.sh --dry-run # preview first
+```
+
+The script is safe to run anytime: it skips worktrees with open PRs and skips worktrees with uncommitted tracked changes.
+
 ## Core workflow loop
 
 The skills above call these workflows internally. Run them directly only when doing non-feature work (bug fixes, spikes, doc updates).

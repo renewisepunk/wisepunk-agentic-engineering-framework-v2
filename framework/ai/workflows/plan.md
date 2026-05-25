@@ -17,6 +17,12 @@ Provide or derive these before starting:
 
 1. **Restate the problem.** Write it in plain language. If you can't state it clearly, the request needs clarification — stop and ask.
 
+   **Before writing the plan, read relevant knowledge files and log what you consulted:**
+   - List `ai/knowledge/pitfalls/` and open any files whose filename hints at relevance.
+   - List `ai/knowledge/patterns/` and open relevant files.
+   - After reading, add a `## Context consulted` section to plan.md listing every file you actually opened.
+   - For each opened file, update its `last_referenced` frontmatter field to today's date. This keeps usage signals fresh for knowledge tooling.
+
 2. **Define scope.** List what's in scope and what's explicitly not. Non-goals are as important as goals.
 
 3. **Surface unknowns.** List assumptions you're making and questions that need answers. Flag anything that could invalidate the plan.

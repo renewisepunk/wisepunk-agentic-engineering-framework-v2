@@ -1,11 +1,40 @@
 # Patterns
 
-One file per reusable approach. The positive twin of pitfalls.
+Approaches that worked well and are worth reusing. **One file per pattern** — agents add new entries by writing a new file, never by appending to a shared one. This avoids merge conflicts when multiple agents finish work in parallel.
 
-## File format
+Updated by the `compound` workflow.
+
+## Frontmatter schema
+
+Every pattern file must begin with this YAML block:
+
+```yaml
+---
+title: "<short human-readable title>"
+tags: [kebab-tag1, kebab-tag2]
+related: [other-pattern.md]
+created: YYYY-MM-DD
+last_referenced: YYYY-MM-DD | null
+---
+```
+
+- **tags:** derived from the filename slug — split on `-`, drop stopwords, keep domain nouns/verbs (max 8)
+- **related:** sibling pattern or pitfall files that address the same area
+- **last_referenced:** updated to today's date each time an agent reads this file during `/new-feature` planning
+
+## How to add an entry
+
+1. Pick a short kebab-case slug from the title (e.g. `zod-validation-at-mutation-boundary.md`).
+2. Create `ai/knowledge/patterns/<slug>.md` with frontmatter then body:
 
 ```markdown
-# <short, specific title>
+---
+title: "<Full title>"
+tags: [tag1, tag2]
+related: []
+created: YYYY-MM-DD
+last_referenced: null
+---
 
 **Problem:** What problem does this pattern solve?
 
@@ -19,14 +48,11 @@ One file per reusable approach. The positive twin of pitfalls.
 **Why this beats the alternative:** What did you consider and reject, and why?
 
 **Where we use it:** Files/areas of the codebase that follow this pattern.
-
----
-*Captured: YYYY-MM-DD from ai/runs/<run>/*
 ```
 
 ## Naming
 
-Same rules as pitfalls — kebab-case, specific, greppable.
+Kebab-case slugs, specific and greppable:
 
 - ✓ `zod-validation-at-mutation-boundary.md`
 - ✓ `convex-internal-fn-for-cross-table-queries.md`

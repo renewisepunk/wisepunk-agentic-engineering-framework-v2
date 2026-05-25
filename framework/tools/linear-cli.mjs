@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Minimal Linear CLI using the REST/GraphQL API + a personal API key.
 // Used by /new-feature and /ship-feature skills as a reliable alternative to the
-// Linear MCP, which doesn't pass through to background sessions cleanly.
+// claude.ai Linear MCP, which doesn't pass through to background sessions cleanly.
 //
 // Auth: reads LINEAR_API_KEY from .env.local (or process env).
 // Get one at https://linear.app/settings/account/security → Personal API keys → New API key.

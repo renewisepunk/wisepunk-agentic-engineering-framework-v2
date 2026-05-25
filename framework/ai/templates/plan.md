@@ -60,12 +60,33 @@ If this issue is schema-only or helper-only (no user-facing capability), state t
 |---|---|---|---|
 | | | | |
 
+## Help doc
+
+Every user-facing operation needs a help doc. Fill this section at planning time. `/ship-feature` will check that the file exists before opening a PR.
+
+If this issue adds no user-facing operations (schema-only, internal cron, framework change), use `—` with a one-line reason:
+
+```
+— internal tooling only; no user-facing operation to document
+```
+
+Otherwise, for each new operation:
+
+| Field | Value |
+|---|---|
+| Slug | `<kebab-case-slug>` |
+| Category | `<Category>` |
+| File | `ai/help/<Category>/<slug>.md` |
+| Summary | One sentence describing what the user learns from this doc |
+| Actions offered | List the action buttons (e.g. drop_prompt / navigate) |
+| Body outline | 2–4 bullet points of the sections the body will cover |
+
 ## Context consulted
 
-<!-- Which pitfall/pattern files did you read before writing this plan? List them here so the knowledge base usage is auditable. -->
+<!-- List every pitfall/pattern file you actually opened during planning (not just listed).
+     For each file opened, also update its last_referenced frontmatter field to today's date. -->
 
-- `ai/knowledge/pitfalls/...`
-- `ai/knowledge/patterns/...`
+-
 
 ## Task breakdown
 

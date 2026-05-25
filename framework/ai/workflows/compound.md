@@ -27,15 +27,28 @@ Extract reusable knowledge from the completed task and feed it back into the sys
    - Were there patterns in the issues (e.g., always missing error handling for X)?
    - What would have caught these issues earlier?
 
-4. **Update the system.** Based on the above, make concrete edits.
+4. **Dedup check — run before writing any new pitfall or pattern.**
+
+   For each proposed new entry:
+
+   a. Note its proposed tags (derive from the slug: split on `-`, drop stopwords, keep domain nouns/verbs).
+   b. List the relevant directory (`ai/knowledge/pitfalls/` or `patterns/`) and parse the `tags:` field from the frontmatter of each file.
+   c. Compute tag overlap for each existing file: `score = |intersection| / min(|proposed|, |existing|)`.
+   d. Read the top-5 files by overlap score.
+   e. If any file describes the same failure mode / pattern at **≥ 0.8 similarity** (your judgment after reading the content): **halt and ask**:
+      > "This looks like a duplicate of `<X.md>`. Append to that file, or create new with justification?"
+   f. If creating new despite similarity: add `related: [X.md]` to both files.
+   g. If appending: add a dated `### YYYY-MM-DD — <short note>` subsection to the existing file. Do not create a new file.
+
+5. **Update the system.** Based on the above, make concrete edits.
 
    **Pitfalls** (`ai/knowledge/pitfalls/<slug>.md`):
-   - For each new failure mode: create a **new file** at `ai/knowledge/pitfalls/<kebab-slug>.md`. Never append to a shared file — per-entry files avoid merge conflicts when multiple agents finish in parallel.
-   - File format: see `ai/knowledge/pitfalls/README.md`.
+   - For each new failure mode (confirmed non-duplicate by step 4): create a **new file** at `ai/knowledge/pitfalls/<kebab-slug>.md`. Include YAML frontmatter (see `ai/knowledge/pitfalls/README.md`).
+   - Never append to a shared file — per-entry files avoid merge conflicts when multiple agents finish in parallel.
 
    **Patterns** (`ai/knowledge/patterns/<slug>.md`):
-   - For each new pattern worth reusing: create a **new file** at `ai/knowledge/patterns/<kebab-slug>.md`. Same per-entry rule as pitfalls.
-   - File format: see `ai/knowledge/patterns/README.md`.
+   - For each new pattern worth reusing (confirmed non-duplicate by step 4): create a **new file** at `ai/knowledge/patterns/<kebab-slug>.md`. Include YAML frontmatter (see `ai/knowledge/patterns/README.md`).
+   - Same per-entry rule as pitfalls.
 
    **Standards** (`ai/STANDARDS.md`):
    - Add or refine rules if a class of bug suggests a missing standard.
@@ -46,7 +59,7 @@ Extract reusable knowledge from the completed task and feed it back into the sys
    **Decisions** (`ai/knowledge/decisions/`):
    - If a significant architectural decision was made, record it as an ADR.
 
-5. **Write the compound record.** Summarize what was captured in `ai/runs/<run>/compound.md`.
+6. **Write the compound record.** Summarize what was captured in `ai/runs/<run>/compound.md`.
 
 ## Output
 
