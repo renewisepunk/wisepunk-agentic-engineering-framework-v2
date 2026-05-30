@@ -1,179 +1,282 @@
-# 06 — Testing and CI
+# 06 — Testing, Validation, and CI
 
-Three layers of testing, plus the merge gates that protect main. Most teams under-invest in layer 2 and over-invest in layer 1; this section is opinionated about why.
+How the framework verifies that shipped work is **secure**, **efficient**, **functionally correct**, and **delivers user value** — without running every check on every PR.
 
----
-
-## The three layers
-
-### Layer 1 — Static + unit (CI-blocking)
-
-What runs on every PR:
-
-- **TypeScript** — `tsc --noEmit` across the whole repo
-- **Lint** — on changed files (faster than whole-repo)
-- **Codegen drift** — caught indirectly by tsc
-
-These are fast (<2 min), deterministic, and cheap to run on every push. The shipped `framework/.github/workflows/ci.template.yml` does all three.
-
-### Layer 2 — UI smoke (manual or PR-triggered)
-
-A small set of scenarios that drive the real app in a real browser against a real backend, with a real seeded test user.
-
-This is what catches "the button renders but does nothing" and "the API returns 200 but the data didn't save" — the bugs that pure-unit tests miss.
-
-**The framework doesn't ship a UI smoke harness** because the right one depends heavily on your stack. But it ships the **structure**:
-
-```
-ai/test-suites/
-  AGENT.md          # runbook for an agent driving tests
-  HUMAN.md          # runbook for a human clicking through
-  _format.md        # scenario file format
-  onboarding/       # fresh-user flows
-  power-user/       # full-workspace flows
-  cli/              # backend-route smoke (curl-driven)
-```
-
-Each scenario is one Markdown file:
-
-```markdown
-### Scenario: Schedule a play via chat
-
-**Goal:** One sentence — what this verifies.
-**Starting URL:** /dashboard
-
-**Steps:**
-1. ...
-2. ...
-
-**Pass criteria:**
-- [ ] Observable assertion 1
-- [ ] No console errors
-```
-
-Drive the suite with the [agent-browser](https://github.com/anthropics/agent-browser) skill or your own Playwright/Cypress wrapper.
-
-### Layer 3 — Verify-in-browser (per-feature)
-
-For UI changes, the implementing agent should start the dev server and confirm the feature in a real browser before shipping. This is the cheapest, most-effective test: "I tested the actual feature manually before saying it works."
-
-The `verify` skill formalizes this (start dev server → screenshot → confirm). The `ui-test` skill drives it for authenticated flows.
+> If you only read one section, read **The validation philosophy** below.
 
 ---
 
-## The CI workflow
+## The validation philosophy
 
-The shipped `ci.template.yml` runs on every PR and every non-main push:
+A naive validation system runs every check on every PR. It crushes velocity. Engineers (and agents) skip checks under deadline pressure. The system that's "always thorough" becomes the system that's "never run."
 
-```yaml
-name: CI
-on:
-  pull_request:
-  push:
-    branches-ignore: [main]
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
-jobs:
-  check:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: TypeScript
-        run: npx tsc --noEmit
-      - name: ESLint (changed files only)
-        run: |
-          BASE="origin/${{ github.event.pull_request.base.ref || 'main' }}"
-          CHANGED=$(git diff --name-only --diff-filter=ACMR "$BASE"...HEAD -- '*.ts' '*.tsx' \
-            | grep -v -E '^(node_modules/|\.next/|.*_generated/)' || true)
-          [ -z "$CHANGED" ] && exit 0
-          echo "$CHANGED" | xargs npx eslint
-```
+The framework instead routes work through a **gate-driven** validation flow:
 
-Adapt for non-Node stacks. The key principles:
+1. A classifier inspects the diff + the plan, decides which gates apply, writes `gates.manifest.json`.
+2. `/ship-feature` runs **only the gates the manifest marks `required`**.
+3. Each gate has a cost (LLM session, Playwright run, walkthrough time). Selectivity is what lets us afford to be thorough on the things that matter.
 
-- **Fast.** <2 minutes ideal.
-- **Per-PR concurrency** — cancel in-progress runs when a new commit lands.
-- **Lint changed files only** — full-repo lint is slow and noisy on existing debt.
+A docs-only PR triggers zero gates beyond acceptance (which is a no-op when no UI changed). A feature that touches auth + DB + ranking + adds a dep triggers all five. The gates that fire are the ones that *could find something*.
 
 ---
 
-## Merge gates
+## The five gates
 
-### Option A — Branch protection (GitHub Pro+)
+| Gate | Lens | Tool | Triggers (default; tune in `ai/gates.config.mjs`) |
+|---|---|---|---|
+| **acceptance** | Does it functionally do what the plan said? | Playwright (deterministic) | Always-on |
+| **user-value** | Does a real user get value from this? | Claude in Chrome / agent-browser (judgment) | UI / page / component changes |
+| **security** | Authn, authz, injection, PII, deps | `/security-review` (specialist LLM) | Auth files, HTTP routes, service actions, package.json |
+| **efficiency** | Budget compliance, queries, bundle, latency | `/efficiency-review` (specialist LLM) | DB files, hot paths, deps, page bundles |
+| **eval** | Quality of graded outputs (search, AI) | `tools/eval-runner.mjs` (LLM-as-judge) | Search, ranking, agent prompts |
 
-The right answer for paid GitHub. Set up branch protection rules on `main`:
+### Why these five, in this order
 
-- Require status checks to pass before merging → select "CI / check"
-- Require branches to be up to date before merging
-- Require a pull request before merging
-- *(optional)* Require linear history
+- **Acceptance** runs first because it's cheap (no LLM) and broken-golden-path means nothing else matters.
+- **Efficiency** before security: budget breaches are objective (numbers); security is judgment-heavy and benefits from acceptance passing first.
+- **Security** before user-value: a security finding can change the implementation, which would invalidate the walkthrough.
+- **User-value** last because it requires the deployment to be stable.
+- **Eval** is independent of the others and parallel-safe.
 
-Server-side enforcement. No escape, no client-side workaround.
+---
 
-### Option B — Client-side pre-push hook (GitHub Free)
+## Tool division of labor: Playwright vs. Claude in Chrome vs. agent-browser
 
-GitHub Free doesn't have rulesets for private repos. The framework ships `.githooks/pre-push` as the fallback:
+These aren't competing tools — they have different jobs. Forcing one tool everywhere is what wastes effort.
+
+| Use case | Best tool | Why |
+|---|---|---|
+| **Acceptance specs** (run on every PR forever) | **Playwright Agent CLI** | Authored once, runs deterministically in CI with no LLM cost. Rich assertions (`expect.toBeVisible`), trace viewer, video on failure, retries, `storageState` for auth. Specs are checked into the repo → become a regression net. |
+| **User-value walkthrough** (one-off, judgment) | **Claude in Chrome / agent-browser** | The agent plays the user persona, judges "does this feel right?", screenshots key moments. LLM-in-the-loop is the *point*. Don't try to write this as a Playwright assertion. |
+| **AI eval suites** (quality grading) | **Pure scripts + LLM-as-judge** | No browser needed. `tools/eval-runner.mjs` runs JSONL cases and scores outputs against rubrics. |
+| **Efficiency capture** | **Playwright perf API + Lighthouse CI** | Piggyback on the acceptance run for web-vitals; bundle-size from CI artifacts. |
+| **Debugging "why is this broken?"** | **Claude in Chrome** | When you don't know what's wrong, you need an LLM driving exploration, not a deterministic test runner. |
+
+### The compounding win from Playwright Agent CLI
+
+Every feature that ships leaves behind a real Playwright spec at `ai/runs/<run>/acceptance.spec.ts`. After 50 features, you have 50 acceptance specs running in CI. Real regression net, authored cheaply, no LLM cost to re-run.
+
+This is qualitatively different from Claude in Chrome, where every check is a fresh LLM session that costs money each time.
+
+### When NOT to use Playwright Agent CLI
+
+For the **user-value gate**, deliberately use Claude in Chrome instead. Encoding "does this feel discoverable?" as a Playwright assertion is a category error — the *whole point* of that gate is human-like judgment. If you find yourself writing 20 `expect()` calls trying to assert "feels right", you've drifted into the wrong tool.
+
+---
+
+## The smart-gating system
+
+### Configuration: `ai/gates.config.mjs`
+
+Each gate declares when it runs:
+
+```js
+export default {
+  gates: {
+    security: {
+      triggers: [
+        "app/api/**/route.ts",
+        "convex/http.ts",
+        "lib/auth/**",
+        "lib/actions/**",
+        "package.json",
+      ],
+      skipExtensions: [".test.ts", ".md"],
+      planOptOutAllowed: true,
+    },
+    // ... other gates
+  },
+};
+```
+
+- `triggers` — globs. Any matched file in the diff triggers the gate.
+- `skipExtensions` — extensions that don't count as triggers (test/docs).
+- `planOptOutAllowed` — whether the plan can declare `skipped` for this gate (acceptance is always required).
+
+### Classifier: `tools/gate-classifier.mjs`
+
+Deterministic. Reads the config + the diff + the plan's Gate scope section. Writes `ai/runs/<run>/gates.manifest.json`.
 
 ```bash
-bash tools/setup-hooks.sh   # points core.hooksPath at .githooks/
+node tools/gate-classifier.mjs --run ai/runs/2026-05-28_ACM-42_name
 ```
 
-The hook:
+Exit codes:
+- `0` — manifest written, no discrepancies
+- `1` — error
+- `2` — discrepancies between plan and globs → caller (the `/ship-feature` skill) runs a semantic LLM override
 
-- Refuses direct pushes to `main` (open a PR instead).
-- Runs lint on changed files before allowing push (catches what CI would catch later, faster).
+### Two-layer gating
 
-Escape hatch for emergencies: `FORCE_DIRECT_PUSH=1 git push origin main`.
+1. **Layer 1 — deterministic globs.** Fast, free, predictable. Catches ~90% of cases.
+2. **Layer 2 — semantic LLM override.** Only fires when the classifier exited 2 (discrepancies found). Reads the diff context + plan justification and resolves: was the plan right, were the globs right, or escalate?
 
-`spawn-agent.sh` activates the hook automatically for new worktrees. For Agent View-dispatched worktrees, the hook applies because `core.hooksPath` is shared across all worktrees once configured on the main repo.
+This keeps cost low (no LLM call on most PRs) while catching the edge cases globs miss.
+
+### Plan-declared opt-outs
+
+The plan template includes a Gate scope section:
+
+```markdown
+## Gate scope
+
+- acceptance: required
+- user-value: required
+- security: skipped — "schema-only change, no new attack surface"
+- efficiency: required
+- eval: skipped — "no quality-graded surfaces touched"
+```
+
+`/new-feature` fills this in based on planned scope. `/ship-feature` re-classifies based on actual diff and flags discrepancies. Honest opt-outs save cost; dishonest ones get caught.
 
 ---
 
-## The independent reviewer as a third gate
+## CI: the always-on layer
 
-If you've enabled the `/independent-review` skill, every PR gets reviewed by a second agent with no implementer context (see [04-skills.md](./04-skills.md#independent-review)). Its Must-fix findings block close.
+Before any gate runs, CI catches the basics on every push:
 
-This catches the class of bugs that:
+```yaml
+# framework/.github/workflows/ci.template.yml
+- TypeScript (tsc --noEmit, full repo)
+- Lint (changed files only — fast)
+- Concurrency: cancel in-progress on new push
+```
 
-- The implementer agent overlooked because it knew what it *meant* to do
-- The CI suite doesn't cover (logic bugs, missing edge cases)
-- A human would catch in code review but maybe doesn't because the PR was already approved
+Plus the pre-push hook for GitHub Free / no-rulesets repos:
+- Refuses direct pushes to `main`
+- Lints changed files locally before allowing push
 
-Cost: ~one extra Claude session per PR.
+These run on *every* push and are not gated — they're the floor, not the ceiling.
+
+---
+
+## The merge gates
+
+### Option A — GitHub branch protection (Pro+)
+Server-side. Require CI / check; require branches up to date; require PR.
+
+### Option B — Client-side pre-push hook (Free)
+```bash
+bash tools/setup-hooks.sh
+```
+Refuses direct pushes; lints changed files. Escape hatch: `FORCE_DIRECT_PUSH=1 git push origin main`.
+
+---
+
+## Authoring eval suites
+
+The eval gate triggers on quality-graded surfaces (search, ranking, AI agent outputs). See `framework/ai/eval-suites/README.md` for the full spec; the short version:
+
+- One `.jsonl` per feature surface at `ai/eval-suites/<feature>.jsonl`.
+- Each line: `{ id, input, rubric, expected?, weight? }`.
+- `rubric` is one plain-English sentence the LLM judge reads.
+- Seed cases from real production traces, not invented inputs.
+- Mix easy/medium/hard via `tags`.
+
+---
+
+## Authoring acceptance specs with Playwright Agent CLI
+
+The acceptance gate triggers always. Specs are scaffolded by Playwright Agent CLI during `/new-feature` from the GWT criteria in `plan.md`. The spec exists *before* implementation — TDD-shaped.
+
+### Setup (one-time per project)
+
+```bash
+npm install --save-dev @playwright/test
+npx playwright install --with-deps
+npm install --save-dev @playwright/agent-cli   # or whatever the install command is for your version
+```
+
+Configure `playwright.config.ts` with the preview URL pattern (per-branch backend), the `storageState` strategy for auth, and the test directory glob `ai/runs/**/acceptance.spec.ts`.
+
+### Per-feature flow
+
+1. `/new-feature` reads the plan's acceptance criteria, invokes Playwright Agent CLI:
+   ```bash
+   npx playwright agent author --plan plan.md --out acceptance.spec.ts
+   ```
+2. The CLI produces one `test('Given X, when Y, then Z')` block per criterion, each starting with `test.fixme()` (so the build fails until implementation lands).
+3. The implementer writes code; removes `fixme` markers as criteria are satisfied.
+4. `/ship-feature` Step 3a runs the spec; remaining `fixme` markers fail the gate.
+
+### When Playwright Agent CLI isn't available
+
+Hand-author stubs as `test.fixme(...)` blocks. Document selectors strategy and auth setup in `ai/knowledge/test-patterns/playwright-base.md` so future specs follow it.
+
+---
+
+## The specialist reviewers
+
+Two new skills sit alongside `/independent-review`:
+
+### `/security-review`
+Fresh agent, security-only scope. Gets `ai/checklists/security.md` (deep checklist), the diff, the plan. Outputs `review-security.md` with findings classified Must/Should/Consider. Auto-scaffolds no-auth/wrong-tenant/invalid-input tests for new HTTP routes.
+
+### `/efficiency-review`
+Fresh agent, efficiency-only scope. Gets `ai/checklists/efficiency.md`, the plan's Efficiency budget, and the implementer's measurements. Demands measurement evidence — if missing, fails the gate.
+
+Both run only when their gate is `required` in the manifest. Both spawn fresh agents with no implementer context (no worklog, no review.md).
+
+---
+
+## The verify-as-user walkthrough (user-value gate)
+
+Run via Claude in Chrome on the preview deployment. Process:
+
+1. Read `plan.md`'s User-value section (persona, goal, success signal).
+2. Open the preview URL as the persona (fresh signup vs. established workspace).
+3. Walk the golden path. Capture screenshots.
+4. Verify against `ai/checklists/user-value.md`: discoverability, first-use clarity, happy path, error states, empty states, mobile.
+5. Cross-surface equivalence: UI/chat/CLI all return the same underlying data.
+6. Write the attestation: does this deliver value? Yes/No/Partially with reasoning.
+
+If the attestation is No or Partially, the gate fails. Fix or escalate.
+
+---
+
+## Test patterns (the new knowledge surface)
+
+`ai/knowledge/test-patterns/` is where *testing recipes* compound — alongside `pitfalls/` and `patterns/`.
+
+A pattern describes "how to build feature class X." A test-pattern describes "how to **verify** feature class X." Examples:
+
+- `cross-tenant-isolation-test.md`
+- `ranking-quality-eval.md`
+- `hot-path-latency-proof.md`
+- `playwright-storage-state-auth.md`
+
+The compound step in `/ship-feature` writes a new test-pattern when the testing approach for this feature class was non-obvious and will apply to future features. The next agent reads it during `/new-feature` Step 1.
 
 ---
 
 ## Common failure modes
 
-- **TypeScript passes but the app is broken.** Layer 2 (smoke) is your friend. Don't ship UI changes without exercising the real UI.
-- **Tests pass locally, fail in CI.** Almost always env vars or timing. Add the missing secret to GitHub Actions repo settings; or convert flaky tests to deterministic ones.
-- **Pre-commit hook flake.** The hook lints, which has a real failure mode (lint rules disagree with intent). If you hit this often, raise the bar of what counts as a lint error (downgrade warnings).
-- **CI takes >5 min.** Investigate. Likely culprits: full-repo lint, large test suite without sharding, slow Docker image. Speed of feedback matters more than thoroughness for the merge gate.
+- **TypeScript passes but the feature is broken.** Acceptance gate catches this — Playwright runs the actual feature, not just type-checks.
+- **Feature passes acceptance but is useless.** User-value gate. Discoverability problems, confusing copy, hidden CTAs.
+- **Feature passes acceptance but is slow / expensive.** Efficiency gate. Force budget declaration at plan time; demand measurement at ship time.
+- **Feature passes acceptance but leaks data across tenants.** Security gate. Auto-scaffolded wrong-tenant test catches the common form.
+- **AI feature passes acceptance but the answers are bad.** Eval gate. Functional ≠ quality.
+- **Gates ran but didn't catch the bug.** Compound step: write a new pitfall + add to the relevant checklist. Promote to a standard if it's a class.
 
 ---
 
-## What to add later
+## Migrating an existing project
 
-The shipped framework is intentionally minimal. As you grow:
+If you're adopting this on a project that already uses `/ship-feature`:
 
-- **Visual regression** (Percy, Chromatic) — catches "the button moved 2px and we didn't notice" before users do.
-- **Performance budgets** (Lighthouse CI) — catches "we shipped a 4MB bundle" before it lands.
-- **Smoke against production previews** — most platforms generate per-PR preview URLs; run the smoke suite against them, not localhost.
-- **Flake tracker** — the Paul9 reference ships `tools/flake-tracker.mjs` that auto-files repeat smoke failures to Linear after 3 consecutive FAILs. Copy when your suite stabilizes.
+1. Copy `framework/ai/gates.config.mjs` to `ai/gates.config.mjs`. Tune triggers for your stack.
+2. Copy `framework/tools/gate-classifier.mjs` and `framework/tools/eval-runner.mjs` to `tools/`.
+3. Copy the new checklists: `security.md`, `efficiency.md`, `user-value.md`.
+4. Install the two specialist skills: `security-review/SKILL.md`, `efficiency-review/SKILL.md`.
+5. Update your plan template (or use the new template wholesale).
+6. The new `/ship-feature` SKILL.md replaces the old one — backward-compatible for runs that pre-date the gate system (no manifest → all gates skip with a one-line warning; treat as legacy).
+
+Run one feature through end-to-end before dispatching parallel work; it surfaces stack-specific tuning the defaults didn't cover.
 
 ---
 
 ## Next
 
-- **Linear setup in depth:** [07-linear-integration.md](./07-linear-integration.md)
+- **Linear setup:** [07-linear-integration.md](./07-linear-integration.md)
 - **Customizing for your stack:** [08-customizing.md](./08-customizing.md)
+- **Troubleshooting:** [09-troubleshooting.md](./09-troubleshooting.md)

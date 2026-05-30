@@ -165,6 +165,21 @@ List which pitfall and pattern files you actually read before writing this plan:
 
 This makes the knowledge-base usage auditable. Future tooling can grep for "Context consulted" to track which pitfalls are actually being read.
 
+### Required section: User value
+
+Articulate the **user persona**, their **goal**, and the **observable success/failure signal** in the plan. If you can't write a one-line success signal in the user's own vantage point (not "endpoint returns 200"), the feature isn't ready to plan — escalate to the human.
+
+The user-value walkthrough gate (run by `/ship-feature`) reads this section to know what to attest.
+
+### Required section: Efficiency budget
+
+For each dimension that applies (hot-path latency, DB queries per request, bundle delta, background job cost), fill in:
+
+- The **baseline** (current value on main) — measure it now, even roughly
+- The **budget** (max acceptable post-change)
+
+If a dimension genuinely doesn't apply, write `n/a` with a one-line reason. The efficiency reviewer (run by `/ship-feature`) compares measurements against this budget. No budget → no measurement is required → no efficiency review possible.
+
 ### Required section: Test plan
 
 Write the test plan at planning time. Specify:
@@ -176,16 +191,94 @@ Write the test plan at planning time. Specify:
 - For each new backend function: list what inputs/outputs need a test
 - For each new API route: list what it should return for valid + invalid input
 
-**UI smoke test:**
-- Identify the golden path a user would take through the new feature
-- Note which elements to verify (form submits, data appears, error states show)
+**Acceptance spec (Playwright):**
+- Each acceptance criterion (GWT) maps to one or more Playwright test cases
+- Scaffolded in Step 3.7 below — you don't write the spec yourself, you write the criteria, the Playwright Agent CLI turns them into test stubs
 
-**CLI/API test:**
-- List the `curl` commands that verify each HTTP route works end-to-end
+**User-value walkthrough:**
+- The golden path the declared user persona takes
+- Performed by Claude in Chrome during `/ship-feature`, not by you now
+
+**Eval suite (if applicable):**
+- Only for quality-graded surfaces (search, ranking, AI outputs)
+- Lives in `ai/eval-suites/<feature>.jsonl`; format: one JSON object per line with `input`, `expected`, `rubric`
 
 ### Full plan.md checklist
 
 Before saving the plan, verify `ai/checklists/plan.md`. All boxes must be checkable before handing off to implementation.
+
+## Step 3.5 — Fill the Gate scope section
+
+Decide which validation gates apply to this feature, based on the planned scope. Each gate is either `required` or `skipped` with a one-line reason.
+
+Defaults to use unless you have a specific reason:
+
+| Gate | Default for | Skip if |
+|---|---|---|
+| `acceptance` | always required | never (cannot be opted out) |
+| `user-value` | any UI-touching feature | schema-only, internal helper, CLI-only utility |
+| `security` | new HTTP route, new auth path, new dep | pure refactor with no surface changes |
+| `efficiency` | new DB query, hot-path change, new dep | docs-only, schema-only without query path |
+| `eval` | search / ranking / AI output changes | most other features (this is the rarest gate) |
+
+Write the Gate scope section of plan.md like:
+
+```markdown
+## Gate scope
+
+- acceptance: required
+- user-value: required
+- security: skipped — "schema-only change, no new attack surface"
+- efficiency: required
+- eval: skipped — "no quality-graded surfaces touched"
+```
+
+`/ship-feature` will re-classify based on the actual diff and flag any discrepancies (e.g., you said "no attack surface" but ended up adding `app/api/foo/route.ts`). Set the scope honestly; "skip everything" plans get audited.
+
+## Step 3.7 — Scaffold the acceptance spec with Playwright Agent CLI
+
+Turn the GWT acceptance criteria into a runnable Playwright spec **now**, before any code is written. This is TDD-shaped: the spec exists before the implementation, so the implementer has a concrete target.
+
+### If Playwright Agent CLI is configured in this project
+
+```bash
+# Path: ai/runs/YYYY-MM-DD_ACM-42_name/acceptance.spec.ts
+# Project-specific command — see docs/06-testing-and-ci.md for setup.
+# Typical shape:
+
+npx playwright agent author \
+  --plan "ai/runs/YYYY-MM-DD_ACM-42_name/plan.md" \
+  --out  "ai/runs/YYYY-MM-DD_ACM-42_name/acceptance.spec.ts" \
+  --base-url "$(grep '^AGENTIC_PREVIEW_URL=' .env.local | cut -d= -f2-)"
+```
+
+The CLI reads the **Acceptance criteria** section of plan.md and produces a `.spec.ts` with one `test(...)` block per criterion. Each block:
+
+- Has the GWT text in the test name
+- Starts with `test.fixme()` or a `// TODO` comment so failing CI is expected until implementation lands
+- Uses `expect()` assertions Playwright understands (`toBeVisible`, `toHaveText`, etc.)
+
+### If Playwright Agent CLI is NOT yet configured
+
+Hand-author a minimal stub at `ai/runs/<run>/acceptance.spec.ts` so the file exists. Each criterion gets a `test.fixme()` stub like:
+
+```ts
+import { test, expect } from '@playwright/test';
+
+test.fixme('Given an authenticated user, when they click "New schedule", then the schedule form appears', async ({ page }) => {
+  // TODO: implement after feature lands
+});
+```
+
+Document in `ai/knowledge/test-patterns/` how acceptance specs are structured for this project (selectors strategy, auth setup, etc.) so the next agent doesn't re-invent it.
+
+### Why now, not later
+
+Authoring after implementation has two failure modes:
+1. The spec drifts to match what the code does, not what the criterion says (test-after-code bias)
+2. The implementer is tempted to skip the spec under deadline pressure
+
+Authoring now means the spec is the contract, not a retrospective doc.
 
 ## Step 4 — Post plan summary to Linear
 
