@@ -112,7 +112,7 @@ You should see JSON for up to 5 backlog issues.
 
 ### 4c. Decide your issue prefix
 
-Linear teams have a key like `ACM` for "Acme". Issues then look like `ACM-1`, `ACM-2`. The installer asked you for this; if you skipped it, edit `ai/STANDARDS.md`, `ai/templates/plan.md`, and `.agents/skills/*/SKILL.md` to replace `{ISSUE_PREFIX}` with your actual prefix.
+Linear teams have a key like `ACM` for "Acme". Issues then look like `ACM-1`, `ACM-2`. The installer asked you for this; if you skipped it, edit `ai/STANDARDS.md`, `ai/templates/plan.md`, and `.claude/skills/*/SKILL.md` to replace `{ISSUE_PREFIX}` with your actual prefix.
 
 ---
 

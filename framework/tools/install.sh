@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # Install the Wisepunk Agentic Engineering Framework into the current project.
 #
-# Usage:
+# Usage (interactive):
 #   bash /path/to/waef/framework/tools/install.sh
+#
+# Usage (non-interactive — for CI or scripted installs):
+#   bash /path/to/waef/framework/tools/install.sh \
+#       --team "Acme" --prefix "ACM" [--target /path/to/project] [--yes]
 #
 # Or from a clone:
 #   git clone https://github.com/renewisepunk/wisepunk-agentic-engineering-framework-v2 /tmp/waef
@@ -10,7 +14,8 @@
 #
 # What it does:
 #   1. Copies framework/ai/ → your repo's ai/
-#   2. Copies framework/.agents/ → your repo's .agents/
+#   2. Copies framework/.claude/skills/ → your repo's .claude/skills/
+#      (native Claude Code skill discovery — invocable as /new-feature, etc.)
 #   3. Merges framework/tools/ into your repo's tools/
 #   4. Copies framework/.githooks/ → your repo's .githooks/
 #   5. Copies framework/AGENTS.md and framework/CLAUDE.md to your repo root
@@ -18,13 +23,34 @@
 #   7. Prompts for ISSUE_PREFIX (e.g. ACM) and substitutes it into templates
 #   8. Adds reminders for .gitignore additions
 #
-# Non-destructive: asks before overwriting any existing file.
+# Non-destructive: asks before overwriting any existing file
+# (unless --yes is passed, which overwrites without asking).
 
 set -euo pipefail
 
+# --- arg parsing -----------------------------------------------------------
+
+TEAM_NAME=""
+ISSUE_PREFIX=""
+TARGET_DIR="$(pwd)"
+ASSUME_YES=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --team)   TEAM_NAME="$2"; shift 2 ;;
+    --prefix) ISSUE_PREFIX="$2"; shift 2 ;;
+    --target) TARGET_DIR="$(cd "$2" && pwd)"; shift 2 ;;
+    --yes|-y) ASSUME_YES=1; shift ;;
+    --help|-h)
+      sed -n '2,30p' "$0"
+      exit 0
+      ;;
+    *) echo "unknown arg: $1" >&2; exit 1 ;;
+  esac
+done
+
 # Locate the framework directory (where this script lives, minus /tools)
 FRAMEWORK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TARGET_DIR="$(pwd)"
 
 echo "Wisepunk Agentic Engineering Framework — installer"
 echo "  Framework source: $FRAMEWORK_DIR"
@@ -32,20 +58,29 @@ echo "  Target project:   $TARGET_DIR"
 echo ""
 
 if [[ ! -d "$TARGET_DIR/.git" ]]; then
-  read -r -p "Target is not a git repository. Continue anyway? [y/N] " yn
-  case "$yn" in
-    [yY]*) ;;
-    *) echo "aborted"; exit 1 ;;
-  esac
+  if [[ $ASSUME_YES -eq 1 ]]; then
+    echo "Target is not a git repository; proceeding due to --yes."
+  else
+    read -r -p "Target is not a git repository. Continue anyway? [y/N] " yn
+    case "$yn" in
+      [yY]*) ;;
+      *) echo "aborted"; exit 1 ;;
+    esac
+  fi
 fi
 
 # --- helpers ---------------------------------------------------------------
 
-# Copy a file, asking before overwriting
+# Copy a file, asking before overwriting (unless --yes)
 copy_file() {
   local src="$1"
   local dest="$2"
   if [[ -f "$dest" ]]; then
+    if [[ $ASSUME_YES -eq 1 ]]; then
+      cp "$src" "$dest"
+      echo "  ~ $dest (overwritten)"
+      return
+    fi
     read -r -p "  $dest exists. Overwrite? [y/N] " yn
     case "$yn" in
       [yY]*) cp "$src" "$dest"; echo "    overwritten" ;;
@@ -69,15 +104,17 @@ copy_dir() {
   done
 }
 
-# --- prompt for config -----------------------------------------------------
+# --- prompt for config (interactive only) ----------------------------------
 
-echo ""
-echo "Configuration:"
-read -r -p "  Linear team name (e.g. Acme): " TEAM_NAME
-read -r -p "  Linear issue prefix (e.g. ACM): " ISSUE_PREFIX
+if [[ -z "$TEAM_NAME" ]]; then
+  read -r -p "  Linear team name (e.g. Acme): " TEAM_NAME
+fi
+if [[ -z "$ISSUE_PREFIX" ]]; then
+  read -r -p "  Linear issue prefix (e.g. ACM): " ISSUE_PREFIX
+fi
 
 if [[ -z "$TEAM_NAME" || -z "$ISSUE_PREFIX" ]]; then
-  echo "Both required. Aborting." >&2
+  echo "Both --team and --prefix required. Aborting." >&2
   exit 1
 fi
 
@@ -89,9 +126,9 @@ echo ""
 echo "Copying ai/ ..."
 copy_dir "$FRAMEWORK_DIR/ai" "$TARGET_DIR/ai"
 
-# --- copy .agents/ ---------------------------------------------------------
-echo "Copying .agents/ ..."
-copy_dir "$FRAMEWORK_DIR/.agents" "$TARGET_DIR/.agents"
+# --- copy .claude/skills/ (NATIVE Claude Code skill discovery) -------------
+echo "Copying .claude/skills/ ..."
+copy_dir "$FRAMEWORK_DIR/.claude/skills" "$TARGET_DIR/.claude/skills"
 
 # --- copy tools/ -----------------------------------------------------------
 echo "Copying tools/ ..."
@@ -121,8 +158,8 @@ for f in \
   "$TARGET_DIR/AGENTS.md" \
   "$TARGET_DIR/ai/templates/plan.md" \
   "$TARGET_DIR/ai/checklists/plan.md" \
-  "$TARGET_DIR/.agents/skills/new-feature/SKILL.md" \
-  "$TARGET_DIR/.agents/skills/ship-feature/SKILL.md" \
+  "$TARGET_DIR/.claude/skills/new-feature/SKILL.md" \
+  "$TARGET_DIR/.claude/skills/ship-feature/SKILL.md" \
 ; do
   if [[ -f "$f" ]]; then
     sed -i.bak "s/{ISSUE_PREFIX}/$ISSUE_PREFIX/g; s/{TEAM_NAME}/$TEAM_NAME/g" "$f"
@@ -144,6 +181,10 @@ cat <<EOF
 ║                         INSTALL COMPLETE                             ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
+Skills installed at .claude/skills/ — invocable in Claude Code as:
+  /new-feature  /ship-feature  /independent-review
+  /security-review  /efficiency-review
+
 Next steps:
 
   1. Fill in ai/CONTEXT.md with your project details
@@ -164,8 +205,11 @@ Next steps:
   6. Customize tools/bootstrap-worktree-backend.sh for your backend
      (Convex / Supabase / Neon / Vercel — see docs/08-customizing.md)
 
-  7. Ship your first feature:
-     claude agents
+  7. Open Claude Code in this project and confirm the skills loaded:
+     claude
+     > /help    # should show /new-feature etc. under "Project skills"
+
+  8. Ship your first feature:
      > /new-feature $ISSUE_PREFIX-1
 
   Full guide: see GETTING_STARTED.md in the framework repo.

@@ -209,7 +209,7 @@ Each worktree has its own `node_modules` symlink (or fresh copy, depending on pn
 
 1. **Read the run folder.** `plan.md` says what was intended. `worklog.md` says what actually happened. `review.md` says what was found. `compound.md` says what was learned.
 
-2. **Re-read the skill file.** `.agents/skills/<name>/SKILL.md` is the source of truth for what the skill *should* do. If the agent's behavior diverges, the skill needs sharpening.
+2. **Re-read the skill file.** `.claude/skills/<name>/SKILL.md` is the source of truth for what the skill *should* do. If the agent's behavior diverges, the skill needs sharpening.
 
 3. **Check pitfalls.** `ls ai/knowledge/pitfalls/` and read anything whose name hints at relevance. Often the answer is already there.
 
