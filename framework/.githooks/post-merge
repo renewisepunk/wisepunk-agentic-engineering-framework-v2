@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Warn when a merge brings in dependency changes that require a fresh install.
+#
+# Git sets ORIG_HEAD to the pre-merge tip before every merge (including fast-forward
+# merges from `git pull`). We diff that range for manifest/lockfile changes and print
+# a reminder if anything shows up. This hook never blocks — it exits 0 regardless.
+#
+# Stack-agnostic: the pattern below covers the common JS package managers by default.
+# Add your ecosystem's manifests/lockfiles here if different
+# (e.g. requirements.txt|poetry.lock, go.mod|go.sum, Cargo.toml|Cargo.lock, Gemfile.lock).
+
+set -euo pipefail
+
+DEP_FILES='(^|/)(package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb)$'
+
+changed=$(git diff --name-only ORIG_HEAD HEAD 2>/dev/null \
+  | grep -E "$DEP_FILES" \
+  || true)
+
+if [ -n "$changed" ]; then
+  echo "" >&2
+  echo "📦  Dependencies changed — run your install command (e.g. pnpm install / npm install)" >&2
+  echo "" >&2
+fi

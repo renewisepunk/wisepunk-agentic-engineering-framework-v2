@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Pre-commit hook: block committing a shebang'd file without the +x bit.
+#
+# A file with a #!/ first line that is staged as 100644 will fail at runtime
+# on every fresh checkout. This hook catches that at commit time — important
+# for a framework that ships executable tools/ scripts and .githooks/.
+
+set -euo pipefail
+
+fail=0
+
+while IFS= read -r line; do
+  mode="${line:0:6}"
+  file="${line##*$'\t'}"
+
+  # Only check regular non-executable files (100644)
+  [[ "$mode" == "100644" ]] || continue
+
+  # Skip deleted / unreadable paths
+  [[ -f "$file" ]] || continue
+
+  # Check for shebang in the first two bytes
+  first_two=$(head -c 2 "$file" 2>/dev/null || true)
+  if [[ "$first_two" == "#!" ]]; then
+    echo "✗ Missing +x bit: $file" >&2
+    echo "  Fix: git update-index --chmod=+x $file" >&2
+    fail=1
+  fi
+done < <(git diff --cached --name-only --diff-filter=ACMR \
+  | while IFS= read -r f; do
+      git ls-files --stage -- "$f"
+    done)
+
+if [[ "$fail" == "1" ]]; then
+  cat >&2 <<'EOF'
+
+Files with a shebang (#!) must be committed with the executable bit set.
+Run the fix command(s) above, then retry your commit.
+
+To bypass this check (not recommended):
+  SKIP_PRECOMMIT_EXEC_CHECK=1 git commit ...
+EOF
+  exit 1
+fi
+
+exit 0
