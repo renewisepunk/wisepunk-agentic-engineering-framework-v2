@@ -90,7 +90,7 @@ framework/                 ← the portable substrate (copied into your project)
     templates/plan.md
     checklists/{plan,review,ai-first}.md
     knowledge/{pitfalls,patterns,decisions}/README.md
-  .agents/skills/{new-feature,ship-feature,independent-review}/SKILL.md
+  .claude/skills/{new-feature,ship-feature,independent-review}/SKILL.md
   tools/                     orchestration scripts
     install.sh                 → run once per project to set everything up
     linear-cli.mjs             → Linear API wrapper that works in background sessions

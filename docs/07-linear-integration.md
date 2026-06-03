@@ -36,7 +36,7 @@ In Linear, teams have a key (visible at Settings → Workspace → Teams):
 
 - Team **"Acme"** → key **"ACM"** → issues are `ACM-1`, `ACM-2`…
 
-The framework templates refer to issues as `{ISSUE_PREFIX}-N`. The installer (`tools/install.sh`) substitutes this for your real prefix; if you skipped that, edit `ai/templates/plan.md` and `.agents/skills/*/SKILL.md` to replace `{ISSUE_PREFIX}`.
+The framework templates refer to issues as `{ISSUE_PREFIX}-N`. The installer (`tools/install.sh`) substitutes this for your real prefix; if you skipped that, edit `ai/templates/plan.md` and `.claude/skills/*/SKILL.md` to replace `{ISSUE_PREFIX}`.
 
 ### 3. Verify the CLI works
 

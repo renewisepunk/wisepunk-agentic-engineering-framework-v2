@@ -10,7 +10,7 @@ The framework's tools are mostly stack-agnostic. Two files need stack-specific a
 
 1. **`tools/bootstrap-worktree-backend.sh`** — creates a preview backend per worktree. The default stub allocates a port and sets env vars; you add the preview-creation step for your stack.
 
-2. **`.agents/skills/ship-feature/SKILL.md` Step 3** — deploys the backend. The default skill has a placeholder; replace with your stack's deploy command.
+2. **`.claude/skills/ship-feature/SKILL.md` Step 3** — deploys the backend. The default skill has a placeholder; replace with your stack's deploy command.
 
 Everything else (Linear CLI, dispatch-batch, agent-status, pre-push hook, workflows, plan template) is portable as-is.
 

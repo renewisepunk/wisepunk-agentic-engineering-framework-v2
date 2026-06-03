@@ -8,7 +8,7 @@ The framework ships three skills.
 
 ## `/new-feature <ISSUE>`
 
-**File:** `.agents/skills/new-feature/SKILL.md`
+**File:** `.claude/skills/new-feature/SKILL.md`
 **Purpose:** Start a feature. Claim the Linear issue, bootstrap isolation, write the plan, post to Linear. Do **not** start coding.
 
 ### What it does, step by step
@@ -50,7 +50,7 @@ The result: smaller PRs, easier review, fewer merge conflicts.
 
 ## `/ship-feature`
 
-**File:** `.agents/skills/ship-feature/SKILL.md`
+**File:** `.claude/skills/ship-feature/SKILL.md`
 **Purpose:** Gate between "code written" and "issue closed." Verify, deploy, review, compound, post, close.
 
 ### What it does, step by step
@@ -89,7 +89,7 @@ The skills also encode the **shape** of the work: `/new-feature` stops *before* 
 
 ## `/independent-review` (recommended)
 
-**File:** `.agents/skills/independent-review/SKILL.md`
+**File:** `.claude/skills/independent-review/SKILL.md`
 **Purpose:** Second pair of eyes on every PR. A fresh agent that's never seen the worklog or implementer's chat.
 
 ### Why this exists
@@ -126,7 +126,7 @@ The skills also encode the **shape** of the work: `/new-feature` stops *before* 
 
 ## Adding your own skills
 
-Skills live in `.agents/skills/<name>/SKILL.md`. The format:
+Skills live in `.claude/skills/<name>/SKILL.md`. The format:
 
 ```markdown
 ---
