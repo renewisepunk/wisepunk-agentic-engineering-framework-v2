@@ -181,6 +181,9 @@ for issue in "${ISSUES[@]}"; do
   claude --bg --permission-mode auto --name "$issue" "$PROMPT"
 done
 
+# Comma-separated issue list for the coordinator loop prompt.
+ISSUE_LIST=$(IFS=', '; echo "${ISSUES[*]}")
+
 cat <<EOF
 
 ✓ All sessions dispatched. Open Agent View to monitor:
@@ -191,4 +194,17 @@ Tips:
   - Press Space on a row to peek; press Enter to attach.
   - Each agent's plan, worklog, and review live under .claude/worktrees/<name>/ai/runs/
   - PRs appear with a status dot on the right of each row.
+EOF
+
+cat <<EOF
+
+────────────────────────────────────────────────────────────────────────────
+Coordinator monitoring loop (paste into THIS session — the one that dispatched):
+
+/loop 5m Check status of in-flight agents ($ISSUE_LIST). For each, report agent status via \`claude agents --json\`, and PR state via \`gh pr list --state all\`. For PRs with type-check passing and no real failures (smoke/infra failures are ok), admin-merge with \`gh pr merge <num> --admin --squash\`. For type-check failures, surface the errors so we can fix them. When all are merged, stop and summarize.
+
+Why: dispatch without a loop is fire-and-forget; with a loop it's fire-and-supervise
+(catches stale PRs, admin-merges green ones, unblocks dependent batches as foundations land).
+Session-only — for overnight/multi-day batches use the /schedule skill (durable cloud run).
+────────────────────────────────────────────────────────────────────────────
 EOF

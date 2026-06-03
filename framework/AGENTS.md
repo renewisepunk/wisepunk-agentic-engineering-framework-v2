@@ -78,6 +78,16 @@ tools/cleanup-merged.sh --dry-run # preview first
 
 The script is safe to run anytime: it skips worktrees with open PRs and skips worktrees with uncommitted tracked changes.
 
+### After pulling main — sync dependencies
+
+When you pull or merge `main`, a teammate's PR may have changed dependencies. The git hooks (`.githooks/post-merge`, `.githooks/post-rewrite`) print a reminder when a manifest/lockfile changed in the pulled range — they never block. To run the same check on demand (plus any stack-specific pull-hygiene checks you add):
+
+```bash
+bash tools/post-pull.sh
+```
+
+The dep-drift check is stack-agnostic — it watches the common package-manager manifests/lockfiles by default; extend the pattern in those hooks and in `post-pull.sh` for your ecosystem. Activate the hooks once per clone with `bash tools/setup-hooks.sh`.
+
 ## Core workflow loop
 
 The skills above call these workflows internally. Run them directly only when doing non-feature work (bug fixes, spikes, doc updates).
