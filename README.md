@@ -38,6 +38,8 @@ bash /tmp/waef/framework/tools/install.sh
 
 Full step-by-step in [GETTING_STARTED.md](./GETTING_STARTED.md).
 
+**Adopting via an agent?** Don't make it review this repo — point it at [`.claude/skills/adopt-framework/SKILL.md`](./.claude/skills/adopt-framework/SKILL.md) in the clone. It's a self-contained skill that walks an agent through non-interactive install and integration into an existing repo, including migrating an existing docs/plans folder into the `ai/` structure. (Opened Claude Code in this repo? It's invocable as `/adopt-framework`.)
+
 ## How it works (in 60 seconds)
 
 ```
@@ -67,6 +69,10 @@ Run that loop 10× a day across 10 parallel agents and your backlog drains itsel
 ```
 README.md                  ← you are here
 GETTING_STARTED.md         ← install + first feature, end to end
+
+.claude/skills/
+  adopt-framework/           agent-facing onboarding skill — install + integrate
+                             into an existing repo without reviewing this repo
 
 docs/                      ← conceptual + how-to docs
   01-concepts.md             the mental model — three-surface, compound, parallel

@@ -4,6 +4,8 @@ This guide takes you from "empty repo" to "first shipped feature via the agent l
 
 If you're integrating the framework into an existing repo, the same steps apply — the installer is non-destructive (won't overwrite existing files without confirmation).
 
+> **Delegating this to an agent?** Have it read [`.claude/skills/adopt-framework/SKILL.md`](./.claude/skills/adopt-framework/SKILL.md) instead of this guide — it covers the non-interactive install path plus migrating existing `CLAUDE.md`s, plans folders, conventions docs, and CI into the framework structure.
+
 ---
 
 ## Prerequisites
