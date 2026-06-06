@@ -148,6 +148,7 @@ Claude Code matches user input against the `description` field to decide when to
 
 - **`/quick-fix`** — typo/rename/dep-bump that skips the full plan template (lightweight loop for trivial changes)
 - **`/verify`** — start the dev server, take a screenshot, confirm a feature renders (already shipped in Paul9; not yet in framework — PR welcome)
+- **`/e2e-auth`** — authenticated browser e2e: sign in past bot-detection/MFA (Clerk Testing Tokens; Auth0/NextAuth/Supabase/custom), then run/author Playwright specs or a one-off verification. **Shipped** — `framework/.claude/skills/e2e-auth/`, paired with `tools/e2e/clerk-auth.mjs` and the `playwright-auth` test-pattern.
 - **`/security-review`** — run a focused security pass before shipping (great for capabilities that touch auth / payments)
 - **`/code-review`** — run on someone else's PR; produces a structured review
 
