@@ -189,6 +189,15 @@ npm install --save-dev @playwright/agent-cli   # or whatever the install command
 
 Configure `playwright.config.ts` with the preview URL pattern (per-branch backend), the `storageState` strategy for auth, and the test directory glob `ai/runs/**/acceptance.spec.ts`.
 
+### Authenticating the specs
+
+Most acceptance specs run as a signed-in user — but you can't just drive the login form in CI: the auth provider's bot detection, "new-device" / MFA email codes, and CAPTCHA block it. Worse, it fails *silently* — a non-blocking smoke that never actually authenticates still goes green, so a project can ship auth-gated changes for weeks against a hollow check. Use the provider's **test bypass** to get a real session, sign in **once** in global setup, and cache it with `storageState` so every spec starts authed.
+
+- **Clerk:** `@clerk/testing`'s `setupClerkTestingToken()` injects a Testing Token that bypasses bot detection. (The sign-in ticket must be a query param — not a `#/?__clerk_ticket=` hash; and handle the org-setup step if Organizations are enabled.)
+- **Other systems:** Auth0 password-grant on a test tenant, a test-env-guarded `/api/test-login` for NextAuth/custom, `supabase.auth.signInWithPassword`, etc. — same shape, different bypass.
+
+This is also **why auth-gated specs use Playwright, not agent-browser**: only Playwright can rewrite the provider's API requests to inject the token (agent-browser can only abort/mock). Judgment walkthroughs can still use Claude-in-Chrome — but load the saved `storageState` instead of signing in through the UI. Full recipe + worked Clerk example: `ai/knowledge/test-patterns/playwright-auth.md`.
+
 ### Per-feature flow
 
 1. `/new-feature` reads the plan's acceptance criteria, invokes Playwright Agent CLI:
@@ -243,7 +252,7 @@ A pattern describes "how to build feature class X." A test-pattern describes "ho
 - `cross-tenant-isolation-test.md`
 - `ranking-quality-eval.md`
 - `hot-path-latency-proof.md`
-- `playwright-storage-state-auth.md`
+- `playwright-auth.md` (authenticating e2e through Clerk / other providers — shipped)
 
 The compound step in `/ship-feature` writes a new test-pattern when the testing approach for this feature class was non-obvious and will apply to future features. The next agent reads it during `/new-feature` Step 1.
 
